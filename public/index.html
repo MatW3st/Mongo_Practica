@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Gestión de MongoDB</title>
+  <style>
+    body { font-family: Arial; margin: 20px; }
+    button { margin: 5px; padding: 10px; background-color: #4CAF50; color: white; border: none; cursor: pointer; }
+    button:hover { background-color: #45a049; }
+    input, select { padding: 5px; margin: 5px; }
+    ul { list-style-type: none; padding: 0; }
+    li { margin: 5px 0; }
+    h2, h3 { color: #333; }
+  </style>
+</head>
+<body>
+  <h1>Administración de Base de Datos</h1>
+
+  <!-- Panel de Administración -->
+  <div>
+    <h2>Panel de Administración</h2>
+    <input id="dbName" placeholder="Nombre de la base de datos">
+    <button onclick="createDatabase()">Crear Base de Datos</button>
+    <br>
+    <input id="collectionName" placeholder="Nombre de la colección">
+    <button onclick="createCollection()">Crear Colección</button>
+    <h3>Bases de Datos</h3>
+    <ul id="databases"></ul>
+    <h3>Crear Usuario</h3>
+    <input id="username" placeholder="Nombre de usuario">
+    <input id="password" type="password" placeholder="Contraseña">
+    <select id="role" multiple>
+      <option value="read">read</option>
+      <option value="readWrite">readWrite</option>
+      <option value="dbAdmin">dbAdmin</option>
+      <option value="dbOwner">dbOwner</option>
+    </select>
+    <input id="userDb" placeholder="Base de datos">
+    <button onclick="createUser()">Crear Usuario</button>
+  </div>
+
+  <!-- Gestión de Datos -->
+  <div>
+    <h2>Datos</h2>
+    <input id="nombre" placeholder="Nombre">
+    <input id="valor" type="number" placeholder="Valor">
+    <button onclick="addItem()">Agregar</button>
+    <ul id="items"></ul>
+  </div>
+
+  <!-- Gestión de Copias de Seguridad -->
+  <div>
+    <h2>Gestión de Copias de Seguridad</h2>
+    <select id="backupDb">
+      <option value="">Selecciona una base de datos</option>
+    </select>
+    <button onclick="backup()">Backup</button>
+    <button onclick="restore()">Restore</button>
+  </div>
+
+  <!-- Importación y Exportación -->
+  <div>
+    <h2>Importación y Exportación</h2>
+    <button onclick="exportData()">Exportar</button>
+    <button onclick="importData()">Importar</button>
+  </div>
+
+  <script>
+    // Gestión de Items
+    async function fetchItems() {
+      try {
+        const res = await fetch('/items');
+        if (!res.ok) {
+          throw new Error(`Error ${res.status}: ${res.statusText}`);
+        }
+        const items = await res.json();
+        const itemsList = document.getElementById('items');
+        if (!items || items.length === 0) {
+          itemsList.innerHTML = '<li>No hay datos</li>';
+        } else {
+          itemsList.innerHTML = items.map(i => `
+            <li>
+              ${i.nombre}: ${i.valor}
+              <button onclick="editItem('${i._id}', '${i.nombre}', ${i.valor})">Editar</button>
+              <button onclick="deleteItem('${i._id}')">Eliminar</button>
+            </li>
+          `).join('');
+        }
+      } catch (err) {
+        alert('Error al cargar items: ' + err.message);
+        document.getElementById('items').innerHTML = '<li>Error al cargar datos</li>';
+      }
+    }
+
+    async function addItem() {
+      try {
+        const nombre = document.getElementById('nombre').value;
+        const valor = document.getElementById('valor').value;
+        const res = await fetch('/items', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nombre, valor })
+        });
+        const data = await res.json();
+        alert(data.message || 'Item agregado');
+        fetchItems();
+      } catch (err) {
+        alert('Error al agregar item: ' + err.message);
+      }
+    }
+
+    async function editItem(id, nombre, valor) {
+      try {
+        const newNombre = prompt('Nuevo nombre:', nombre);
+        const newValor = prompt('Nuevo valor:', valor);
+        const res = await fetch(`/items/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nombre: newNombre, valor: newValor })
+        });
+        const data = await res.json();
+        alert(data.message || 'Item actualizado');
+        fetchItems();
+      } catch (err) {
+        alert('Error al actualizar item: ' + err.message);
+      }
+    }
+
+    async function deleteItem(id) {
+      try {
+        const res = await fetch(`/items/${id}`, {
+          method: 'DELETE'
+        });
+        const data = await res.json();
+        alert(data.message || 'Item eliminado');
+        fetchItems();
+      } catch (err) {
+        alert('Error al eliminar item: ' + err.message);
+      }
+    }
+
+    // Gestión de Bases de Datos
+    async function fetchDatabases() {
+      try {
+        const res = await fetch('/databases');
+        if (!res.ok) {
+          throw new Error(`Error ${res.status}: ${res.statusText}`);
+        }
+        const databases = await res.json();
+        const dbList = document.getElementById('databases');
+        const backupDbSelect = document.getElementById('backupDb');
+        if (!databases || databases.length === 0) {
+          dbList.innerHTML = '<li>No se encontraron bases de datos</li>';
+          backupDbSelect.innerHTML = '<option value="">No hay bases de datos disponibles</option>';
+        } else {
+          dbList.innerHTML = databases.map(db => `
+            <li>
+              ${db.name}
+              <button onclick="deleteDatabase('${db.name}')">Eliminar</button>
+            </li>
+          `).join('');
+          // Llenar el select con las bases de datos
+          backupDbSelect.innerHTML = '<option value="">Selecciona una base de datos</option>' + 
+            databases.map(db => `<option value="${db.name}">${db.name}</option>`).join('');
+        }
+      } catch (err) {
+        alert('Error al cargar bases de datos: ' + err.message);
+        document.getElementById('databases').innerHTML = '<li>Error al cargar bases de datos</li>';
+      }
+    }
+
+    async function createDatabase() {
+      try {
+        const dbName = document.getElementById('dbName').value;
+        if (!dbName) {
+          throw new Error('Nombre de la base de datos es requerido');
+        }
+        const res = await fetch('/databases', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dbName })
+        });
+        const data = await res.json();
+        if (data.error) {
+          alert('Error: ' + data.error);
+        } else {
+          alert(data.message || 'Base de datos creada');
+          fetchDatabases();
+        }
+      } catch (err) {
+        alert('Error al crear base de datos: ' + err.message);
+      }
+    }
+
+    async function createCollection() {
+      try {
+        const collectionName = document.getElementById('collectionName').value;
+        if (!collectionName) {
+          throw new Error('Nombre de la colección es requerido');
+        }
+        const res = await fetch('/collections', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ collectionName })
+        });
+        const data = await res.json();
+        alert(data.message || 'Colección creada');
+      } catch (err) {
+        alert('Error al crear colección: ' + err.message);
+      }
+    }
+
+    async function deleteDatabase(dbName) {
+      try {
+        const res = await fetch(`/databases/${dbName}`, {
+          method: 'DELETE'
+        });
+        const data = await res.json();
+        alert(data.message || 'Base de datos eliminada');
+        fetchDatabases();
+      } catch (err) {
+        alert('Error al eliminar base de datos: ' + err.message);
+      }
+    }
+
+    // Gestión de Usuarios
+    async function createUser() {
+      try {
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const roleSelect = document.getElementById('role');
+        const roles = Array.from(roleSelect.selectedOptions).map(option => option.value);
+        const dbName = document.getElementById('userDb').value;
+        if (!username || !password || !dbName || roles.length === 0) {
+          throw new Error('Todos los campos son requeridos');
+        }
+        const res = await fetch('/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password, roles, dbName })
+        });
+        const data = await res.json();
+        if (data.error) {
+          alert('Error: ' + data.error);
+        } else {
+          alert(data.message || 'Usuario creado');
+        }
+      } catch (err) {
+        alert('Error al crear usuario: ' + err.message);
+      }
+    }
+
+    // Backups y Restauraciones
+    async function backup() {
+      try {
+        const backupDbElement = document.getElementById('backupDb');
+        if (!backupDbElement) {
+          throw new Error('El elemento para seleccionar la base de datos no se encontró. Verifica el HTML.');
+        }
+        const backupDb = backupDbElement.value;
+        if (!backupDb) {
+          throw new Error('Por favor, selecciona una base de datos para respaldar');
+        }
+        const backupPath = prompt('Ruta del archivo de backup (ej. C:\\Users\\matej\\mongo-web-app\\backups\\miBackup.tar.gz):') || `./backups/backup_${Date.now()}.tar.gz`;
+        const res = await fetch('/backup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ backupPath, dbName: backupDb })
+        });
+        const data = await res.json();
+        if (data.error) {
+          alert('Error: ' + data.error);
+        } else {
+          alert(data.message || 'Backup creado');
+        }
+      } catch (err) {
+        alert('Error al crear backup: ' + err.message);
+      }
+    }
+
+    async function restore() {
+      try {
+        const backupDbElement = document.getElementById('backupDb');
+        if (!backupDbElement) {
+          throw new Error('El elemento para seleccionar la base de datos no se encontró. Verifica el HTML.');
+        }
+        const backupDb = backupDbElement.value;
+        if (!backupDb) {
+          throw new Error('Por favor, selecciona una base de datos destino para restaurar');
+        }
+        const path = prompt('Ruta del archivo de backup (ej. C:\\Users\\matej\\mongo-web-app\\backups\\miBackup.tar.gz):');
+        if (!path) {
+          throw new Error('Ruta del backup no especificada');
+        }
+        // Normalizar la ruta
+        const normalizedPath = path.trim().replace(/\\/g, '/');
+        const res = await fetch('/restore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ backupPath: normalizedPath, dbName: backupDb })
+        });
+        const data = await res.json();
+        if (data.error) {
+          alert('Error: ' + data.error);
+        } else {
+          alert(data.message || 'Base de datos restaurada');
+          fetchItems(); // Actualizar la lista de datos si la base de datos restaurada es la que está en uso
+        }
+      } catch (err) {
+        alert('Error al restaurar: ' + err.message);
+      }
+    }
+
+    // Exportación e Importación
+    async function exportData() {
+      try {
+        window.location.href = '/export';
+      } catch (err) {
+        alert('Error al exportar: ' + err.message);
+      }
+    }
+
+    async function importData() {
+      try {
+        const path = prompt('Ruta del archivo JSON (ej. C:\\Users\\matej\\mongo-web-app\\exports\\export_123456789.json):');
+        if (!path) {
+          throw new Error('Ruta del archivo no especificada');
+        }
+        // Normalizar la ruta
+        const normalizedPath = path.trim().replace(/\\/g, '/');
+        if (!normalizedPath.toLowerCase().endsWith('.json')) {
+          throw new Error('La ruta debe apuntar a un archivo JSON (.json). Verifica que la extensión sea correcta.');
+        }
+        const res = await fetch('/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filePath: normalizedPath })
+        });
+        const data = await res.json();
+        if (data.error) {
+          alert('Error: ' + data.error);
+        } else {
+          alert(data.message || 'Datos importados');
+          fetchItems();
+        }
+      } catch (err) {
+        alert('Error al importar: ' + err.message);
+      }
+    }
+
+    // Cargar datos al iniciar
+    fetchItems();
+    fetchDatabases();
+  </script>
+</body>
+</html>

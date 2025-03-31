@@ -5,7 +5,8 @@ Manual Completo: Aplicación de Gestión de MongoDB
 1. Introducción
 Este manual documenta el desarrollo de una aplicación web para la gestión de bases de datos MongoDB. La aplicación permite realizar operaciones CRUD sobre datos, gestionar bases de datos y colecciones, crear usuarios, realizar backups y restauraciones, y exportar/importar datos. La aplicación está construida con Node.js, Express, y MongoDB, y utiliza Docker para ejecutar MongoDB en un contenedor.
 
-Objetivos
+
+2. Objetivos
 Proporcionar una interfaz web para gestionar bases de datos MongoDB.
 Permitir la creación, edición y eliminación de datos en una colección.
 Gestionar bases de datos y colecciones (crear y eliminar).

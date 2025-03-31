@@ -14,17 +14,13 @@ Crear usuarios con roles específicos.
 Realizar backups y restauraciones de bases de datos.
 Exportar e importar datos en formato JSON.
 Implementar la selección dinámica de bases de datos para backups.
-Tecnologías Utilizadas
-Node.js: Entorno de ejecución para JavaScript en el servidor.
-Express: Framework para crear la API REST.
-MongoDB: Base de datos NoSQL.
-Docker: Para ejecutar MongoDB en un contenedor.
-Mongoose: ODM (Object Data Modeling) para interactuar con MongoDB.
-HTML/CSS/JavaScript: Para la interfaz de usuario.
-
-
-
-
+3. Tecnologías Utilizadas
+- Node.js: Entorno de ejecución para JavaScript en el servidor.
+- Express: Framework para crear la API REST.
+- MongoDB: Base de datos NoSQL.
+- Docker: Para ejecutar MongoDB en un contenedor.
+- Mongoose: ODM (Object Data Modeling) para interactuar con MongoDB.
+- HTML/CSS/JavaScript: Para la interfaz de usuario.
 
 
 
